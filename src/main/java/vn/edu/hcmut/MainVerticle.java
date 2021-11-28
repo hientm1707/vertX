@@ -5,12 +5,12 @@ import io.vertx.core.Promise;
 
 public class MainVerticle extends AbstractVerticle {
 
-  @Override
   public void start(Promise<Void> startPromise) throws Exception {
+
     vertx.createHttpServer().requestHandler(req -> {
       req.response()
-        .putHeader("content-type", "text/plain")
-        .end("Hello from Vert.x!");
+        .putHeader("content-type", "application/json")
+        .end("{\"message\": \"Done\"}");
     }).listen(8888, http -> {
       if (http.succeeded()) {
         startPromise.complete();
