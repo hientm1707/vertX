@@ -1,12 +1,13 @@
-package vn.edu.hcmut;
+package vn.edu.hcmut.vertical;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 
 public class MainVerticle extends AbstractVerticle {
 
-  public void start(Promise<Void> startPromise) throws Exception {
 
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception {
     vertx.createHttpServer().requestHandler(req -> {
       req.response()
         .putHeader("content-type", "application/json")
@@ -20,4 +21,5 @@ public class MainVerticle extends AbstractVerticle {
       }
     });
   }
+
 }

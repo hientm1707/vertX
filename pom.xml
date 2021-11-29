@@ -40,13 +40,16 @@
       <groupId>io.vertx</groupId>
       <artifactId>vertx-web-client</artifactId>
     </dependency>
+
+
     <dependency>
       <groupId>io.vertx</groupId>
-      <artifactId>vertx-grpc</artifactId>
+      <artifactId>vertx-web</artifactId>
+      <version>3.5.1</version>
     </dependency>
     <dependency>
       <groupId>io.vertx</groupId>
-      <artifactId>vertx-rx-java3</artifactId>
+      <artifactId>vertx-grpc</artifactId>
     </dependency>
     <dependency>
       <groupId>io.vertx</groupId>
@@ -57,11 +60,7 @@
       <artifactId>vertx-reactive-streams</artifactId>
     </dependency>
 
-    <dependency>
-      <groupId>io.vertx</groupId>
-      <artifactId>vertx-junit5</artifactId>
-      <scope>test</scope>
-    </dependency>
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
