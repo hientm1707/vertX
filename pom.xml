@@ -45,8 +45,9 @@
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-web</artifactId>
-      <version>3.5.1</version>
+      <version>4.2.1</version>
     </dependency>
+
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-grpc</artifactId>
@@ -54,6 +55,7 @@
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-rabbitmq-client</artifactId>
+      <version>4.2.1</version>
     </dependency>
     <dependency>
       <groupId>io.vertx</groupId>

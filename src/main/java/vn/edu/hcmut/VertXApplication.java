@@ -1,13 +1,14 @@
 package vn.edu.hcmut;
 
 import io.vertx.core.Vertx;
-import vn.edu.hcmut.vertical.MainVerticle;
-import vn.edu.hcmut.vertical.RabbitMQVertical;
+import vn.edu.hcmut.vertical.WebClientVerticle;
+import vn.edu.hcmut.vertical.RabbitMQVerticle;
 
 public class VertXApplication {
   public static void main(String [] args) {
     Vertx vertx = Vertx.vertx();
-    vertx.deployVerticle(new MainVerticle());
-    vertx.deployVerticle(new RabbitMQVertical());
+    vertx.deployVerticle(new WebClientVerticle());
+    vertx.deployVerticle(new RabbitMQVerticle());
+//    vertx.deployVerticle(new EndpointVerticle());
   }
 }
