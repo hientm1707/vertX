@@ -12,14 +12,22 @@ import io.vertx.rabbitmq.RabbitMQClient;
 import io.vertx.rabbitmq.RabbitMQConsumer;
 import io.vertx.rabbitmq.RabbitMQOptions;
 import vn.edu.hcmut.constant.QueueConstant;
+import vn.edu.hcmut.interfaces.Calculator;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class RabbitMQVerticle extends AbstractVerticle {
   private Message<JsonObject> receivedMessage = null;
+  private Map<String, Calculator> map = new ConcurrentHashMap<>();
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
+    map.put("plus", (a,b) -> a+b);
+    map.put("minus", (a,b) -> a-b);
+
     //CONFIG
     RabbitMQOptions config = new RabbitMQOptions();
     config.setUser("hientm177")
@@ -68,15 +76,10 @@ public class RabbitMQVerticle extends AbstractVerticle {
               var op = body.getString("op");
 
               JsonObject resObj = new JsonObject();
-              switch (op) {
-                case "plus":
-                  resObj.put("result", o1 + o2);
-                  break;
-                case "minus":
-                  resObj.put("result", o1 - o2);
-                  break;
-              }
-//              vertx.eventBus().publish(QueueConstant.WEB_ADDR, resObj.toBuffer());
+
+                resObj.put("result", map.get(op).calculate(o1,o2));
+
+              vertx.eventBus().publish(QueueConstant.WEB_ADDR, resObj.toBuffer());
               receivedMessage.reply(resObj.toBuffer());
             }
             );

@@ -3,8 +3,7 @@ package vn.edu.hcmut.vertical;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.eventbus.MessageConsumer;
-import io.vertx.core.json.JsonObject;
+
 import io.vertx.ext.web.Router;
 import vn.edu.hcmut.constant.QueueConstant;
 
@@ -30,19 +29,6 @@ public class WebClientVerticle extends AbstractVerticle {
                   response.end(bufferMessage.body().toString());
                   System.out.println("I have received a message: " + bufferMessage.body().toJsonObject());
                 });
-
-//              publish(QueueConstant.RABBIT_ADDR, bufferJO);
-//
-//
-//
-//
-//          });
-//          MessageConsumer<Buffer> consumer = vertx.eventBus().consumer(QueueConstant.WEB_ADDR);
-//          consumer.handler(message -> {
-//            response.putHeader("content-type", "application/json; charset=utf-8");
-//            response.end(message.body().toString());
-//            System.out.println("I have received a message: " + message.body().toJsonObject());
-
           });
         });
 
