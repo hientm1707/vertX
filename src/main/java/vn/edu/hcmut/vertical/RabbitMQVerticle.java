@@ -5,6 +5,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rabbitmq.RabbitMQClient;
@@ -15,10 +16,10 @@ import vn.edu.hcmut.constant.QueueConstant;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class RabbitMQVerticle extends AbstractVerticle {
+  private Message<JsonObject> receivedMessage = null;
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
-
     //CONFIG
     RabbitMQOptions config = new RabbitMQOptions();
     config.setUser("hientm177")
@@ -57,13 +58,28 @@ public class RabbitMQVerticle extends AbstractVerticle {
         client.basicConsumer(queueName.get(), rabbitMQConsumerAsyncResult -> {
           if (rabbitMQConsumerAsyncResult.succeeded()) {
             var consumer = rabbitMQConsumerAsyncResult.result();
-            consumer.handler(msg -> {
+            consumer.handler(message -> {
 //                    JsonObject json = (JsonObject) msg.body();
-              System.out.println("Got message: " + msg.body().toJsonObject());
-              vertx.eventBus().publish(QueueConstant.WEB_ADDR, new JsonObject().put("message", "modified message").toBuffer());
+              System.out.println("Got message: " + message.body().toJsonObject());
 
-            });
-            System.out.println("RabbitMQ consumer created !");
+              var body = message.body().toJsonObject();
+              var o1 = body.getInteger("o1");
+              var o2 = body.getInteger("o2");
+              var op = body.getString("op");
+
+              JsonObject resObj = new JsonObject();
+              switch (op) {
+                case "plus":
+                  resObj.put("result", o1 + o2);
+                  break;
+                case "minus":
+                  resObj.put("result", o1 - o2);
+                  break;
+              }
+//              vertx.eventBus().publish(QueueConstant.WEB_ADDR, resObj.toBuffer());
+              receivedMessage.reply(resObj.toBuffer());
+            }
+            );
             consumerRef.set(consumer);
           }
         });
@@ -87,12 +103,17 @@ public class RabbitMQVerticle extends AbstractVerticle {
 //
 //      });
 
-    EventBus eb = vertx.<JsonObject>eventBus();
+    EventBus eb = vertx.eventBus();
     MessageConsumer<JsonObject> consumer = eb.consumer(QueueConstant.RABBIT_ADDR);
     consumer.handler(message -> {
       System.out.println("I have received a message: " + message.body());
       basicPublish(client, message.body().toBuffer());
+      this.receivedMessage = message;
     });
+
+  }
+
+  ;
 
 
 //    vertx.createHttpServer()
@@ -105,14 +126,15 @@ public class RabbitMQVerticle extends AbstractVerticle {
 //          startPromise.fail(http.cause());
 //        }
 //      });
-  }
+
+
 
   public void basicPublish(RabbitMQClient client, Buffer buffer) {
 //    Buffer message = Buffer.buffer("body", "Hello RabbitMQ, from Vert.x !");
 //    JsonObject message = new JsonObject().put();
     client.basicPublish("", QueueConstant.QUEUE1, buffer, pubResult -> {
       if (pubResult.succeeded()) {
-        System.out.println("Message published ! " + buffer.toJsonObject()  );
+        System.out.println("Message published ! " + buffer.toJsonObject());
       } else {
         pubResult.cause().printStackTrace();
       }
