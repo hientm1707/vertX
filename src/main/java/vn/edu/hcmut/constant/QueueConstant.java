@@ -10,4 +10,5 @@ public class QueueConstant {
   public static final String WEB_ADDR = "web123";
   public static final String RABBIT_CALC_ADDR = "rabbitaddr";
   public static final String WEB_CALC_ADDR = "webaddr";
+  public static final String EXCHANGE = "exchange";
 }

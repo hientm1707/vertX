@@ -1,6 +1,8 @@
 package vn.edu.hcmut.vertical;
 
 
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.BuiltinExchangeType;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
@@ -50,7 +52,7 @@ public class RabbitMQVerticle extends AbstractVerticle {
     //Add Callback to Established Connection event
     client.addConnectionEstablishedCallback(promise -> {
       System.out.println("Connection to RabbitMQ established successfully");
-      client.exchangeDeclare("exchange", "fanout", true, false)
+      client.exchangeDeclare(QueueConstant.EXCHANGE, BuiltinExchangeType.HEADERS.getType(), true, false)
         .compose(v -> client.queueDeclare(QueueConstant.QUEUE1, false, true, true))
         .compose(declareOk -> {
           queueName1.set(declareOk.getQueue());
@@ -58,7 +60,12 @@ public class RabbitMQVerticle extends AbstractVerticle {
           if (currentConsumer != null) {
             currentConsumer.setQueueName(queueName1.get());
           }
-          return client.queueBind(queueName1.get(), "exchange", "");
+          Map<String, Object> args = Map.of(
+            "x-match", "any",
+            "h1", "header1",
+            "h2", "header2"
+          );
+          return client.queueBind(queueName1.get(), QueueConstant.EXCHANGE, "", args);
         })
         .compose(o -> client.queueDeclare(QueueConstant.QUEUE2, false, true, true))
         .compose(declareOk -> {
@@ -67,7 +74,12 @@ public class RabbitMQVerticle extends AbstractVerticle {
           if (currentConsumer != null) {
             currentConsumer.setQueueName(queueName2.get());
           }
-          return client.queueBind(queueName2.get(), "exchange", "");
+          Map<String, Object> args = Map.of(
+            "x-match", "all",
+            "accept", "yest"
+          );
+
+          return client.queueBind(queueName2.get(), QueueConstant.EXCHANGE, "",  args);
         })
         .onComplete(promise);
     });
@@ -88,20 +100,21 @@ public class RabbitMQVerticle extends AbstractVerticle {
                 var op = body.getString("op");
 
                 JsonObject resObj = new JsonObject();
-
-                try {
-                  resObj.put("result", map.get(op).calculate(o1, o2));
-                } catch (InterruptedException e) {
-                  e.printStackTrace();
-                }
-                basicPublishToQueue(client, resObj.toBuffer(), QueueConstant.QUEUE2);
-
+                new Thread( () -> {
+                  try {
+                    resObj.put("result", map.get(op).calculate(o1, o2));
+                  } catch (InterruptedException e) {
+                    e.printStackTrace();
+                  }
+                  basicPublishToQueue(client, resObj.toBuffer(), QueueConstant.QUEUE2, Map.of(
+                    "accept", "yes"
+                  ));
+                }).start();
               }
             );
             consumerRef1.set(consumer);
           }
         });
-
 
         client.basicConsumer(queueName2.get(), rabbitMQConsumerAsyncResult -> {
           if (rabbitMQConsumerAsyncResult.succeeded()) {
@@ -118,7 +131,7 @@ public class RabbitMQVerticle extends AbstractVerticle {
 
       })
       .onFailure(ex -> {
-        System.out.println("Rabbit  went wrong: " + ex.getMessage());
+        System.out.println("Rabbit  went wrong: " + ex.getCause());
       });
 
 
@@ -126,16 +139,25 @@ public class RabbitMQVerticle extends AbstractVerticle {
     MessageConsumer<JsonObject> consumer = eb.consumer(QueueConstant.RABBIT_ADDR);
     consumer.handler(message -> {
       System.out.println("I have received a message: " + message.body());
-      basicPublishToQueue(client, message.body().toBuffer(), QueueConstant.QUEUE1);
-
-
+      basicPublishToQueue(client, message.body().toBuffer(), QueueConstant.QUEUE1, null);
       this.receivedMessage = message;
     });
 
   }
 
 
-  public void basicPublishToQueue(RabbitMQClient client, Buffer buffer, String queueConstant) {
+  public void basicPublishToQueue(RabbitMQClient client, Buffer buffer, String queueConstant, Map<String, Object> headerMap) {
+    com.rabbitmq.client.BasicProperties properties = null;
+    if (queueConstant == QueueConstant.QUEUE2) {
+      properties = new AMQP.BasicProperties()
+        .builder()
+        .headers(Map.of("h1", "header1")).build();
+    } else {
+      properties = new AMQP.BasicProperties()
+        .builder()
+        .headers(headerMap).build();
+    }
+
     client.basicPublish("", queueConstant, buffer, pubResult -> {
       if (pubResult.succeeded()) {
         System.out.println("Message published ! " + buffer.toJsonObject());
