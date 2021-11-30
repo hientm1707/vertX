@@ -13,8 +13,8 @@ import io.vertx.rabbitmq.RabbitMQConsumer;
 import io.vertx.rabbitmq.RabbitMQOptions;
 import vn.edu.hcmut.constant.QueueConstant;
 import vn.edu.hcmut.interfaces.Calculator;
+import vn.edu.hcmut.interfaces.MinusCalculatorImpl;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,8 +25,8 @@ public class RabbitMQVerticle extends AbstractVerticle {
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
-    map.put("plus", (a,b) -> a+b);
-    map.put("minus", (a,b) -> a-b);
+    map.put("plus", (a, b) -> a + b);
+    map.put("minus", new MinusCalculatorImpl());
 
     //CONFIG
     RabbitMQOptions config = new RabbitMQOptions();
@@ -40,8 +40,12 @@ public class RabbitMQVerticle extends AbstractVerticle {
     RabbitMQClient client = RabbitMQClient.create(vertx, config);
 
 
-    AtomicReference<RabbitMQConsumer> consumerRef = new AtomicReference<>();
-    AtomicReference<String> queueName = new AtomicReference<>();
+    AtomicReference<RabbitMQConsumer> consumerRef1 = new AtomicReference<>();
+
+    AtomicReference<RabbitMQConsumer> consumerRef2 = new AtomicReference<>();
+
+    AtomicReference<String> queueName1 = new AtomicReference<>();
+    AtomicReference<String> queueName2 = new AtomicReference<>();
 
     //Add Callback to Established Connection event
     client.addConnectionEstablishedCallback(promise -> {
@@ -49,12 +53,21 @@ public class RabbitMQVerticle extends AbstractVerticle {
       client.exchangeDeclare("exchange", "fanout", true, false)
         .compose(v -> client.queueDeclare(QueueConstant.QUEUE1, false, true, true))
         .compose(declareOk -> {
-          queueName.set(declareOk.getQueue());
-          RabbitMQConsumer currentConsumer = consumerRef.get();
+          queueName1.set(declareOk.getQueue());
+          RabbitMQConsumer currentConsumer = consumerRef1.get();
           if (currentConsumer != null) {
-            currentConsumer.setQueueName(queueName.get());
+            currentConsumer.setQueueName(queueName1.get());
           }
-          return client.queueBind(queueName.get(), "exchange", "");
+          return client.queueBind(queueName1.get(), "exchange", "");
+        })
+        .compose(o -> client.queueDeclare(QueueConstant.QUEUE2, false, true, true))
+        .compose(declareOk -> {
+          queueName2.set(declareOk.getQueue());
+          RabbitMQConsumer currentConsumer = consumerRef2.get();
+          if (currentConsumer != null) {
+            currentConsumer.setQueueName(queueName2.get());
+          }
+          return client.queueBind(queueName2.get(), "exchange", "");
         })
         .onComplete(promise);
     });
@@ -63,79 +76,67 @@ public class RabbitMQVerticle extends AbstractVerticle {
     client.start()
       .onSuccess(v -> {
         // Bind queue and create consumer
-        client.basicConsumer(queueName.get(), rabbitMQConsumerAsyncResult -> {
+        client.basicConsumer(queueName1.get(), rabbitMQConsumerAsyncResult -> {
           if (rabbitMQConsumerAsyncResult.succeeded()) {
             var consumer = rabbitMQConsumerAsyncResult.result();
             consumer.handler(message -> {
-//                    JsonObject json = (JsonObject) msg.body();
-              System.out.println("Got message: " + message.body().toJsonObject());
+                System.out.println("Queue1 Got message: " + message.body().toJsonObject());
 
-              var body = message.body().toJsonObject();
-              var o1 = body.getInteger("o1");
-              var o2 = body.getInteger("o2");
-              var op = body.getString("op");
+                var body = message.body().toJsonObject();
+                var o1 = body.getInteger("o1");
+                var o2 = body.getInteger("o2");
+                var op = body.getString("op");
 
-              JsonObject resObj = new JsonObject();
+                JsonObject resObj = new JsonObject();
 
-                resObj.put("result", map.get(op).calculate(o1,o2));
+                try {
+                  resObj.put("result", map.get(op).calculate(o1, o2));
+                } catch (InterruptedException e) {
+                  e.printStackTrace();
+                }
+                basicPublishToQueue(client, resObj.toBuffer(), QueueConstant.QUEUE2);
 
-              vertx.eventBus().publish(QueueConstant.WEB_ADDR, resObj.toBuffer());
-              receivedMessage.reply(resObj.toBuffer());
-            }
+              }
             );
-            consumerRef.set(consumer);
+            consumerRef1.set(consumer);
           }
         });
+
+
+        client.basicConsumer(queueName2.get(), rabbitMQConsumerAsyncResult -> {
+          if (rabbitMQConsumerAsyncResult.succeeded()) {
+            var consumer = rabbitMQConsumerAsyncResult.result();
+            consumer.handler(message -> {
+                System.out.println("Queue 2 Got message: " + message.body().toJsonObject());
+                receivedMessage.reply(message.body());
+              }
+            );
+            consumerRef2.set(consumer);
+          }
+        });
+
+
       })
       .onFailure(ex -> {
-        System.out.println("It went wrong: " + ex.getMessage());
+        System.out.println("Rabbit  went wrong: " + ex.getMessage());
       });
 
-// CREATE HTTP ROUTE
-//    Router router = Router.router(vertx);
-//    router.post("/messages")
-//      .handler(routingContext -> {
-//        var response = routingContext.response();
-//        var request = routingContext.request().bodyHandler(buffer -> {
-//          var bufferJO = buffer.toJsonObject();
-//          basicPublish(client, buffer);
-//          response.putHeader("content-type", "application/json");
-//          response.end("haha");
-//          System.out.println(bufferJO);
-//        });
-//
-//      });
 
     EventBus eb = vertx.eventBus();
     MessageConsumer<JsonObject> consumer = eb.consumer(QueueConstant.RABBIT_ADDR);
     consumer.handler(message -> {
       System.out.println("I have received a message: " + message.body());
-      basicPublish(client, message.body().toBuffer());
+      basicPublishToQueue(client, message.body().toBuffer(), QueueConstant.QUEUE1);
+
+
       this.receivedMessage = message;
     });
 
   }
 
-  ;
 
-
-//    vertx.createHttpServer()
-//      .requestHandler(router)
-//      .listen(8080, http -> {
-//        if (http.succeeded()) {
-//          startPromise.complete();
-//          System.out.println("Gateway is ready on port 8080!");
-//        } else {
-//          startPromise.fail(http.cause());
-//        }
-//      });
-
-
-
-  public void basicPublish(RabbitMQClient client, Buffer buffer) {
-//    Buffer message = Buffer.buffer("body", "Hello RabbitMQ, from Vert.x !");
-//    JsonObject message = new JsonObject().put();
-    client.basicPublish("", QueueConstant.QUEUE1, buffer, pubResult -> {
+  public void basicPublishToQueue(RabbitMQClient client, Buffer buffer, String queueConstant) {
+    client.basicPublish("", queueConstant, buffer, pubResult -> {
       if (pubResult.succeeded()) {
         System.out.println("Message published ! " + buffer.toJsonObject());
       } else {
